@@ -1,5 +1,8 @@
 const Slot = require('../models/Slot');
 const Booking = require('../models/Booking');
+const ParkingStation = require('../models/ParkingStation');
+
+const ACTIVE_BOOKING_STATUSES = ['BOOKED', 'CHECKED_IN'];
 
 // Utility to generate a unique alphanumeric key
 const generateUniqueKey = () => {
@@ -15,25 +18,25 @@ const generateUniqueKey = () => {
 exports.getAvailableSlots = async (req, res) => {
   try {
     const now = new Date();
-    
+
     const gracePeriod = 5 * 60 * 1000;
     const expiryThreshold = new Date(now.getTime() - gracePeriod);
-    
+
     // Auto-release slots whose booking time has passed (with grace period)
     const expiredBookings = await Booking.find({
       endTime: { $lt: expiryThreshold },
-      status: { $in: ['BOOKED', 'CHECKED_IN'] }
+      status: { $in: ACTIVE_BOOKING_STATUSES }
     });
 
     for (let booking of expiredBookings) {
       booking.status = 'EXPIRED';
       await booking.save();
-      
+
       // Release the slot
       await Slot.findByIdAndUpdate(booking.slotId, { isAvailable: true });
     }
 
-    const slots = await Slot.find({ isAvailable: true });
+    const slots = await Slot.find({ isAvailable: true }).populate('station');
     res.json({ success: true, count: slots.length, data: slots });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
@@ -53,45 +56,17 @@ exports.createBooking = async (req, res) => {
       locationPreference 
     } = req.body;
  
-    // Validate if any slots are available
-    let availableSlot;
-    
-    // 1. Try specific slot number if provided
-    if (slotPreference) {
-      availableSlot = await Slot.findOne({ slotNumber: slotPreference, isAvailable: true });
-    }
- 
-    // 2. Try specific location if provided
-    if (!availableSlot && locationPreference) {
-      // For School/College, they are always available (gate-only)
-      availableSlot = await Slot.findOne({ location: locationPreference });
-    }
-
-    // 3. Automated Fallback Chain
-    if (!availableSlot) {
-      availableSlot = await Slot.findOne({ isAvailable: true, location: 'FUNMALL' });
-    }
- 
-    if (!availableSlot) {
-      availableSlot = await Slot.findOne({ isAvailable: true, location: 'NEARBY' });
-    }
- 
-    if (!availableSlot) {
-      availableSlot = await Slot.findOne({ location: 'SCHOOL' });
-    }
- 
-    if (!availableSlot) {
-      availableSlot = await Slot.findOne({ location: 'COLLEGE' });
-    }
- 
-    if (!availableSlot) {
-      return res.status(400).json({ success: false, message: 'Selected or any other parking slots are not available.' });
-    }
-
     // Parse start time and calculate end time
     const startDateTime = new Date(`${date}T${time}:00`);
     if (isNaN(startDateTime.getTime())) {
       return res.status(400).json({ success: false, message: 'Invalid date or time format.' });
+    }
+
+    if (startDateTime.getTime() < Date.now() - 60 * 1000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start time cannot be in the past. Please choose the current date and a future time.'
+      });
     }
 
     const endDateTime = new Date(startDateTime.getTime() + durationHours * 60 * 60 * 1000);
@@ -102,6 +77,69 @@ exports.createBooking = async (req, res) => {
     while (keyExists) {
       uniqueKey = generateUniqueKey();
       keyExists = await Booking.findOne({ uniqueKey });
+    }
+
+    const reserveSlot = async (filter) => {
+      const slot = await Slot.findOneAndUpdate(
+        { ...filter, isAvailable: true },
+        { $set: { isAvailable: false } },
+        { new: true, sort: { createdAt: 1 } }
+      );
+
+      if (!slot) {
+        return null;
+      }
+
+      const activeBooking = await Booking.exists({
+        slotId: slot._id,
+        status: { $in: ACTIVE_BOOKING_STATUSES },
+        endTime: { $gt: new Date() }
+      });
+
+      if (!activeBooking) {
+        return slot;
+      }
+
+      slot.isAvailable = false;
+      await slot.save();
+      return null;
+    };
+
+    // Validate if any slots are available
+    let availableSlot = null;
+
+    // 1. Try specific slot number if provided
+    if (slotPreference) {
+      availableSlot = await reserveSlot({ slotNumber: slotPreference });
+      if (!availableSlot) {
+        return res.status(400).json({ success: false, message: 'Selected slot is already occupied or booked.' });
+      }
+    }
+
+    // 2. Try preferred location if provided
+    if (!availableSlot && locationPreference) {
+      availableSlot = await reserveSlot({ location: locationPreference });
+    }
+
+    // 3. Automated fallback chain
+    if (!availableSlot) {
+      availableSlot = await reserveSlot({ location: 'FUNMALL' });
+    }
+
+    if (!availableSlot) {
+      availableSlot = await reserveSlot({ location: 'NEARBY' });
+    }
+
+    if (!availableSlot) {
+      availableSlot = await reserveSlot({ location: 'SCHOOL' });
+    }
+
+    if (!availableSlot) {
+      availableSlot = await reserveSlot({ location: 'COLLEGE' });
+    }
+
+    if (!availableSlot) {
+      return res.status(400).json({ success: false, message: 'Selected or any other parking slots are not available.' });
     }
 
     // Calculate Price
@@ -129,12 +167,6 @@ exports.createBooking = async (req, res) => {
     });
 
     await booking.save();
-
-    // Mark slot as unavailable ONLY if it's not a gate-only overflow area
-    if (availableSlot.location !== 'SCHOOL' && availableSlot.location !== 'COLLEGE') {
-      availableSlot.isAvailable = false;
-      await availableSlot.save();
-    }
 
     res.status(201).json({ 
       success: true, 
@@ -164,12 +196,13 @@ exports.createBooking = async (req, res) => {
 exports.verifyEntry = async (req, res) => {
   try {
     const { uniqueKey } = req.body;
+    const normalizedKey = String(uniqueKey || '').trim().toUpperCase();
 
-    if (!uniqueKey) {
+    if (!normalizedKey) {
       return res.status(400).json({ success: false, message: 'Please provide a unique key.' });
     }
 
-    const booking = await Booking.findOne({ uniqueKey }).populate('slotId');
+    const booking = await Booking.findOne({ uniqueKey: normalizedKey }).populate('slotId');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Invalid Key. Access Denied.' });
@@ -302,14 +335,14 @@ exports.checkout = async (req, res) => {
 exports.getGlobalStats = async (req, res) => {
   try {
     const now = new Date();
-    
+
     const gracePeriod = 5 * 60 * 1000;
     const expiryThreshold = new Date(now.getTime() - gracePeriod);
-    
+
     // Ensure stats are accurate by releasing expired slots first
     const expiredBookings = await Booking.find({
       endTime: { $lt: expiryThreshold },
-      status: { $in: ['BOOKED', 'CHECKED_IN'] }
+      status: { $in: ACTIVE_BOOKING_STATUSES }
     });
 
     for (let booking of expiredBookings) {
@@ -321,7 +354,9 @@ exports.getGlobalStats = async (req, res) => {
     const totalSlots = await Slot.countDocuments();
     const freeSlots = await Slot.countDocuments({ isAvailable: true });
     const totalBookings = await Booking.countDocuments();
-    
+    const totalStations = await ParkingStation.countDocuments();
+    const onlineStations = await ParkingStation.countDocuments({ status: 'online' });
+
     // Aggregation for per-location statistics
     const locationStats = await Slot.aggregate([
       {
@@ -340,6 +375,8 @@ exports.getGlobalStats = async (req, res) => {
         freeSlots,
         occupancy: totalSlots > 0 ? Math.round(((totalSlots - freeSlots) / totalSlots) * 100) : 0,
         totalBookings,
+        totalStations,
+        onlineStations,
         locations: locationStats.map(loc => {
            let name = loc._id;
            let fullName = `${loc._id} Parking`;
@@ -353,7 +390,7 @@ exports.getGlobalStats = async (req, res) => {
              name = 'College Overflow';
              fullName = 'Engineering College Overflow Area';
            }
-           
+
            return {
              name,
              fullName,

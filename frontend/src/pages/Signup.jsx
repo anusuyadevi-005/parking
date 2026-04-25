@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, ShieldCheck, Car, User, Phone, Lock, CreditCard, ChevronRight, Loader2 } from 'lucide-react';
+import { ShieldCheck, Car, User, Phone, Lock, CreditCard, ChevronRight, Loader2 } from 'lucide-react';
 import '../Auth.css';
 import heroImage from '../assets/parking-hero.png';
 
@@ -49,15 +49,15 @@ const Signup = () => {
         <img src={heroImage} alt="Smart Parking Garage" />
         <div className="auth-image-overlay"></div>
         <div className="auth-side-content">
-          <h1>Smart Parking Made <span className="gradient-text">Simple</span></h1>
-          <p>Join thousands of drivers who have already simplified their daily commute with SmartPark.</p>
+          <h1>Smart parking made <span className="gradient-text">beautifully simple</span></h1>
+          <p>Join drivers using SmartPark to reserve faster, arrive calmer, and move through premium parking with less friction.</p>
         </div>
       </div>
 
       <div className="auth-form-container">
         <div className="auth-glass-card">
           <div className="auth-brand-mobile">SmartPark</div>
-          
+
           <div className="auth-header-enhanced">
             <h2>Create Account</h2>
             <p>Join us for a seamless parking experience</p>
@@ -97,7 +97,7 @@ const Signup = () => {
                   <label>Password</label>
                   <div className="input-wrapper">
                     <Lock size={18} className="input-icon-enhanced" />
-                    <input type="password" name="password" placeholder="••••••••" onChange={handleChange} required />
+                    <input type="password" name="password" placeholder="Create a secure password" onChange={handleChange} required />
                   </div>
                 </div>
               </div>

@@ -44,13 +44,15 @@ const Navbar = () => {
               Dashboard
             </NavLink>
           )}
-          <NavLink 
-            to="/bookings" 
-            className={({isActive}) => isActive ? "nav-link active" : "nav-link"}
-            onClick={closeMenu}
-          >
-            My Bookings
-          </NavLink>
+          {token && (
+            <NavLink 
+              to="/bookings" 
+              className={({isActive}) => isActive ? "nav-link active" : "nav-link"}
+              onClick={closeMenu}
+            >
+              My Bookings
+            </NavLink>
+          )}
           <NavLink 
             to="/simulation" 
             className={({isActive}) => isActive ? "nav-link active" : "nav-link"}
@@ -72,7 +74,7 @@ const Navbar = () => {
         <div className="nav-right-section">
           <div className="search-box">
             <Search size={18} className="search-icon" />
-            <input type="text" placeholder="Search slots..." />
+            <input type="text" placeholder="Search locations" />
           </div>
           
           <button className="nav-icon-btn" title="Notifications">

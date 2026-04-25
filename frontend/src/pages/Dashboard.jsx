@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
-import { Landmark, ParkingSquare } from 'lucide-react';
+import { getStations } from '../services/api';
 
 const Dashboard = () => {
-  const [slots, setSlots] = useState([]);
+  const [stations, setStations] = useState([]);
   const [stats, setStats] = useState({
     totalSlots: 0,
     freeSlots: 0,
     occupancy: 0,
+    totalStations: 0,
+    onlineStations: 0,
     locations: []
   });
   const [loading, setLoading] = useState(true);
@@ -18,59 +19,51 @@ const Dashboard = () => {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const [slotsRes, statsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/booking/slots'),
-        axios.get('http://localhost:5000/api/booking/stats')
-      ]);
+      const stationsRes = await getStations();
 
-      if (slotsRes.data && slotsRes.data.data) {
-        setSlots(slotsRes.data.data);
+      if (stationsRes.data && stationsRes.data.data) {
+        const stationsData = stationsRes.data.data.stations || [];
+        setStations(stationsData);
+
+        const totalSlots = stationsData.reduce((sum, station) => sum + station.slot_count, 0);
+        const freeSlots = stationsData.reduce((sum, station) => sum + station.free_count, 0);
+        const totalStations = stationsData.length;
+        const onlineStations = stationsData.filter((station) => station.status === 'online').length;
+
+        setStats((prev) => ({
+          ...prev,
+          totalSlots,
+          freeSlots,
+          occupancy: totalSlots > 0 ? Math.round((1 - freeSlots / totalSlots) * 100) : 0,
+          totalStations,
+          onlineStations,
+        }));
       }
-      if (statsRes.data && statsRes.data.data) {
-        setStats(statsRes.data.data);
-      }
+
       setLoading(false);
       setError('');
     } catch (err) {
       console.error('Fetch error:', err);
-      if (slots.length === 0) {
+      if (stations.length === 0) {
         setError('Connection lost. Retrying...');
       }
       setLoading(false);
     }
-  }, [slots.length]);
+  }, [stations.length]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleBook = () => {
-    navigate('/book');
-  };
-
-  const funMallSlots = slots.filter(s => s.location === 'FUNMALL');
-  
-  const getSlotStatus = (label) => {
-    const actualSlot = funMallSlots.find(s => s.slotNumber === label);
-    if (actualSlot) return actualSlot.isAvailable ? 'available' : 'occupied';
-    return 'occupied'; // Default to occupied if not in DB
-  };
-
-  const rowA = Array.from({ length: 12 }, (_, i) => `A${i + 1}`);
-  const rowB = Array.from({ length: 12 }, (_, i) => `B${i + 1}`);
-  const rowC = Array.from({ length: 10 }, (_, i) => `C${i + 1}`);
-
-  if (loading && slots.length === 0) {
+  if (loading && stations.length === 0) {
     return (
-      <div className="loader-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="loader-container" style={{ minHeight: '100vh' }}>
         <div className="spinner"></div>
       </div>
     );
   }
-
-  const alternativeLocations = stats.locations?.filter(loc => !loc.isMain) || [];
 
   const locationState = location.state;
   const searchLocation = locationState?.search || '';
@@ -78,54 +71,55 @@ const Dashboard = () => {
   return (
     <div className="dashboard-layout animate-fade-in">
       <div className="dashboard-main">
-        {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-        
+        {error && <div className="alert alert-error">{error}</div>}
+
         {searchLocation && (
-          <div style={{ 
-            background: 'rgba(59, 130, 246, 0.1)', 
-            padding: '1rem', 
-            borderRadius: '12px', 
-            marginBottom: '1.5rem',
-            border: '1px solid var(--primary-glow)',
-            color: 'white',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span>Showing results for: <strong>{searchLocation}</strong></span>
-            <button className="btn btn-outline" style={{ padding: '0.25rem 0.75rem', fontSize: '0.8rem' }} onClick={() => navigate('/dashboard', { state: {} })}>Clear View</button>
+          <div className="search-results-banner">
+            <span>
+              Showing results for: <strong>{searchLocation}</strong>
+            </span>
+            <button className="btn btn-outline" onClick={() => navigate('/dashboard', { state: {} })}>
+              Clear View
+            </button>
           </div>
         )}
 
         <div className="dashboard-header">
           <div className="header-title-box">
             <div className="capacity-badge">
-              <div className="capacity-dot" style={{ backgroundColor: stats.occupancy > 80 ? '#ef4444' : '#10b981' }}></div>
-              {stats.occupancy > 80 ? 'NEAR CAPACITY' : 'OPTIMAL CAPACITY'}
+              <div
+                className="capacity-dot"
+                style={{ backgroundColor: stats.occupancy > 80 ? '#a14644' : '#2e7d5b' }}
+              ></div>
+              {stats.occupancy > 80 ? 'Near Capacity' : 'Optimal Capacity'}
             </div>
-            <h1 className="dashboard-title">Mall Center<br/>Parking</h1>
+            <h1 className="dashboard-title">SmartPark Dashboard</h1>
             <p className="dashboard-subtitle">
-              Real-time availability dashboard &<br/>management
+              A live command view of station health, slot availability, and overall occupancy.
             </p>
           </div>
-          
+
           <div className="dashboard-stats">
             <div className="stat-card wide">
-              <div className="stat-title">Total Slots</div>
-              <div className="stat-value">{stats.totalSlots}</div>
+              <div className="stat-title">Total Stations</div>
+              <div className="stat-value">{stats.totalStations}</div>
+            </div>
+            <div className="stat-card wide">
+              <div className="stat-title">Online</div>
+              <div className="stat-value blue">{stats.onlineStations}</div>
             </div>
             <div className="stat-card">
               <div className="stat-title">Free Slots</div>
               <div className="stat-value blue">
                 {stats.freeSlots}
-                <span className="stat-change negative">LIVE SYNC</span>
+                <span className="stat-change negative">Live Sync</span>
               </div>
             </div>
             <div className="stat-card wide">
               <div className="stat-title">Occupancy</div>
               <div className="stat-value">
                 {stats.occupancy}%
-                <span className="stat-change positive">DYNAMIC</span>
+                <span className="stat-change positive">Dynamic</span>
               </div>
             </div>
           </div>
@@ -133,7 +127,7 @@ const Dashboard = () => {
 
         <div className="floor-plan-section">
           <div className="floor-plan-header">
-            <div className="floor-plan-title">Live Floor Plan</div>
+            <div className="floor-plan-title">Live Station Map</div>
             <div className="floor-plan-legend">
               <div className="legend-item">
                 <div className="legend-box available"></div>
@@ -145,76 +139,82 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          
-          <div className="floor-plan-container">
-            <div className="slot-row">
-              {rowA.map(slot => {
-                const status = getSlotStatus(slot);
-                return (
-                  <div key={slot} className={`parking-slot ${status}`}>
-                    {status === 'occupied' ? '🚗' : slot}
+
+          {stations.length > 0 ? (
+            <div className="stations-container">
+              {stations.map((station) => (
+                <div key={station.station_id} className="station-card">
+                  <div className="station-header">
+                    <div className="station-info">
+                      <h3 className="station-name">{station.name}</h3>
+                      <span className={`station-status ${station.status}`}>
+                        <span className={`status-dot ${station.status}`}></span>
+                        {station.status === 'online' ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                    <div className="station-stats">
+                      <span>{station.free_count}/{station.slot_count} available</span>
+                      <span>{station.occupancy_percent}% occupied</span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-            <div className="row-divider"></div>
-            <div className="slot-row">
-              {rowB.map(slot => {
-                const status = getSlotStatus(slot);
-                return (
-                  <div key={slot} className={`parking-slot ${status}`}>
-                    {status === 'occupied' ? '🚗' : slot}
+
+                  <div className="station-slots-grid">
+                    {station.slots.map((slot) => {
+                      const status = slot.isAvailable ? 'available' : 'occupied';
+                      return (
+                        <div
+                          key={slot.slot_index}
+                          className={`parking-slot ${status}`}
+                          title={`Slot ${slot.slotNumber}: ${status}`}
+                        >
+                          {status === 'occupied' ? 'Busy' : slot.slotNumber}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
-            <div className="slot-row" style={{ marginTop: '0.25rem' }}>
-              {rowC.map(slot => {
-                const status = getSlotStatus(slot);
-                return (
-                  <div key={slot} className={`parking-slot ${status}`}>
-                    {status === 'occupied' ? '🚗' : slot}
-                  </div>
-                );
-              })}
+          ) : (
+            <div className="no-stations-message">
+              <div className="empty-state">
+                <h2>No Parking Stations Registered</h2>
+                <p>ESP32 nodes will automatically register when they connect to the network.</p>
+                <p>
+                  Make sure your ESP32 firmware calls <code>POST /api/register-node</code> on boot.
+                </p>
+              </div>
             </div>
-            <button className="reserve-btn" onClick={handleBook}>
+          )}
+
+          {stations.length > 0 && (
+            <button className="reserve-btn" onClick={() => navigate('/book')}>
               Reserve Slot Now
             </button>
-          </div>
+          )}
         </div>
       </div>
 
       <div className="dashboard-sidebar">
-        <h2 className="sidebar-title">Nearby Alternatives</h2>
-        <p className="sidebar-subtitle">Live availability across our parking network</p>
-        
-        <div className="alternatives-list">
-          {alternativeLocations.length > 0 ? alternativeLocations.map(loc => (
-            <div key={loc.name} className="alternative-card">
-              <div className="alt-icon-box" style={{ backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>
-                {loc.name.includes('Garage') ? <Landmark size={20} /> : <ParkingSquare size={20} />}
-              </div>
-              <div className="alt-details">
-                <div className="alt-name">{loc.fullName}</div>
-                <div className="alt-distance">Real-time dynamic data</div>
-              </div>
-              <div className="alt-stats">
-                <div className="alt-free">{loc.free} Free</div>
-                <div className="alt-price">ACTIVE</div>
-              </div>
-            </div>
-          )) : (
-            <div style={{ color: '#6B7280', fontSize: '0.9rem', textAlign: 'center', padding: '2rem' }}>
-              No nearby alternatives listed in database.
-            </div>
-          )}
+        <h2 className="sidebar-title">System Overview</h2>
+        <p className="sidebar-subtitle">ESP32 network status in one glance.</p>
+
+        <div className="support-card">
+          <div className="support-title">Station Health</div>
+          <div className="support-desc">
+            {stats.onlineStations} of {stats.totalStations} stations are currently online.
+          </div>
+          <div className="support-meta">
+            Total Capacity: {stats.totalSlots} slots
+            <br />
+            Available Right Now: {stats.freeSlots} slots
+          </div>
         </div>
 
         <div className="support-card">
           <div className="support-title">Need help?</div>
           <div className="support-desc">
-            Contact mall security or check our automated valet options for priority access.
+            Reach the support desk or route drivers to overflow parking when demand spikes.
           </div>
           <button className="support-btn" onClick={() => window.open('tel:1234567890')}>
             Contact Support

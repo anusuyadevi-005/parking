@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist *)",
+      "PowerShell(Get-Process | Where-Object { $_.Id -eq 28656 })",
+      "PowerShell(Stop-Process *)",
+      "Bash(python -m json.tool)",
+      "Bash(ipconfig)",
+      "PowerShell(\\(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch '^\\(127\\\\.|169\\\\.\\)' } | Select-Object IPAddress, InterfaceAlias\\))",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -eq 'node' } | Select-Object Id, ProcessName)",
+      "Bash(awk '{print $5}')",
+      "Bash(xargs -I{} sh -c 'taskkill //PID {} //F')"
+    ]
+  }
+}

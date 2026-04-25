@@ -11,13 +11,16 @@ app.use(express.json());
 // Routes
 const bookingRoutes = require("./routes/bookingRoutes");
 const authRoutes = require("./routes/authRoutes");
+const stationRoutes = require("./routes/stationRoutes");
 app.use("/api/booking", bookingRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api", stationRoutes);
 
 // Models
 const Slot = require("./models/Slot");
 const Booking = require("./models/Booking");
-const User = require("./models/User"); // Added User model
+const User = require("./models/User");
+const ParkingStation = require("./models/ParkingStation");
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -29,50 +32,9 @@ mongoose.connect(process.env.MONGO_URI)
 })
 .catch(err => console.log(err));
 
-// Seed Initial Data (Slots and Admin User)
+// Seed Initial Data (Admin User Only - Slots come from ESP32 registration)
 const seedDatabase = async () => {
   try {
-    // Seed Slots
-    const slotCount = await Slot.countDocuments();
-    if (slotCount === 0) {
-      console.log('Seeding slots...');
-      const slots = [];
-      // Row A1-A12
-      for (let i = 1; i <= 12; i++) {
-        slots.push({ slotNumber: `A${i}`, location: 'FUNMALL', isAvailable: true });
-      }
-      // Row B1-B12
-      for (let i = 1; i <= 12; i++) {
-        slots.push({ slotNumber: `B${i}`, location: 'FUNMALL', isAvailable: true });
-      }
-      // Row C1-C10
-      for (let i = 1; i <= 10; i++) {
-        slots.push({ slotNumber: `C${i}`, location: 'FUNMALL', isAvailable: true });
-      }
-      // Nearby overflow
-      for (let i = 1; i <= 5; i++) {
-        slots.push({ slotNumber: `N${i}`, location: 'NEARBY', isAvailable: true });
-      }
-      // Gate-only overflow (Schools/Colleges)
-      slots.push({ slotNumber: `SCHOOL-GATE`, location: 'SCHOOL', isAvailable: true });
-      slots.push({ slotNumber: `COLLEGE-GATE`, location: 'COLLEGE', isAvailable: true });
-
-      await Slot.insertMany(slots);
-      console.log('Slots seeded successfully!');
-    } else {
-      // Check if SCHOOL/COLLEGE are missing and add them
-      const schoolExists = await Slot.findOne({ location: 'SCHOOL' });
-      if (!schoolExists) {
-        await Slot.create({ slotNumber: 'SCHOOL-GATE', location: 'SCHOOL', isAvailable: true });
-        console.log('Added SCHOOL overflow area.');
-      }
-      const collegeExists = await Slot.findOne({ location: 'COLLEGE' });
-      if (!collegeExists) {
-        await Slot.create({ slotNumber: 'COLLEGE-GATE', location: 'COLLEGE', isAvailable: true });
-        console.log('Added COLLEGE overflow area.');
-      }
-    }
-
     // Seed Admin User
     const adminExists = await User.findOne({ role: 'ADMIN' });
     if (!adminExists) {
@@ -100,10 +62,9 @@ setInterval(async () => {
   try {
     const now = new Date();
 
-    const bookings = await Booking.find({ status: "BOOKED" });
+    const bookings = await Booking.find({ status: { $in: ["BOOKED", "CHECKED_IN"] } });
 
     for (let b of bookings) {
-
       // ⏳ Time left (seconds)
       const timeLeft = (b.endTime - now) / 1000;
 
@@ -116,12 +77,10 @@ setInterval(async () => {
       const fiveMinutesAfterEnd = new Date(b.endTime.getTime() + 300000);
       if (now > fiveMinutesAfterEnd) {
         const extraMinutes = Math.max(0, Math.floor((now - b.endTime) / (1000 * 60)));
-
         const penalty = extraMinutes * 2; // ₹2 per minute
 
         b.status = "EXPIRED";
         b.penalty = penalty;
-
         await b.save();
 
         // Free slot
@@ -137,7 +96,7 @@ setInterval(async () => {
   } catch (err) {
     console.log("Expiry Error:", err.message);
   }
-}, 60000); // every 1 minute
+}, 60000);
 
 // Start Server
 app.listen(5000, () => console.log("Server running on port 5000"));
