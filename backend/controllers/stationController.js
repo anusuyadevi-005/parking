@@ -149,14 +149,23 @@ exports.updateOccupancy = async (req, res) => {
       });
     }
 
-    const hasActiveBooking = await Booking.exists({
-      slotId: slot._id,
-      status: { $in: ACTIVE_BOOKING_STATUSES },
-      endTime: { $gt: new Date() }
-    });
+    if (occupied) {
+      slot.isAvailable = false;
+    } else {
+      // Car has physically left — sensor is the source of truth, free the slot
+      slot.isAvailable = true;
 
-    // Keep booked slots unavailable even if the sensor momentarily reports them as free.
-    slot.isAvailable = occupied ? false : !hasActiveBooking;
+      // Auto-complete any active booking so the slot doesn't stay locked
+      const activeBooking = await Booking.findOne({
+        slotId: slot._id,
+        status: { $in: ACTIVE_BOOKING_STATUSES }
+      });
+      if (activeBooking) {
+        activeBooking.status = 'COMPLETED';
+        await activeBooking.save();
+      }
+    }
+
     await slot.save();
 
     // Treat every occupancy report as a heartbeat — refresh last_seen + online status
@@ -172,7 +181,6 @@ exports.updateOccupancy = async (req, res) => {
         slot_index,
         isAvailable: slot.isAvailable,
         slotNumber: slot.slotNumber,
-        hasActiveBooking: Boolean(hasActiveBooking),
       },
     });
 
