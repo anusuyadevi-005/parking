@@ -22,10 +22,8 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: build
     envVars:
-      # After deploying the backend, set this to:
-      #   https://smartpark-backend.onrender.com/api
       - key: REACT_APP_API_URL
-        sync: false
+        value: https://parking-59lw.onrender.com/api
     routes:
       - type: rewrite
         source: /*
