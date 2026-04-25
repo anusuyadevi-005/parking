@@ -14,6 +14,9 @@ export const updateOccupancy = (node_id, slot_index, occupied) =>
 export const verifyToken = (node_id, token) =>
   API.post("/verify-token", { node_id, token });
 
+export const exitToken = (node_id, token) =>
+  API.post("/checkout-token", { node_id, token });
+
 export const getStations = () =>
   API.get("/stations", {
     params: { t: Date.now() },

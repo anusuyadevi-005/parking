@@ -331,6 +331,57 @@ exports.getStations = async (req, res) => {
   }
 };
 
+// Checkout / exit gate verification (scoped to specific station)
+exports.checkoutToken = async (req, res) => {
+  try {
+    const { node_id, token } = req.body;
+    const normalizedToken = String(token || '').trim().toUpperCase();
+
+    if (!node_id || !normalizedToken) {
+      return res.status(400).json({ success: false, message: 'node_id and token are required' });
+    }
+
+    const station = await ParkingStation.findOne({ node_id });
+    if (!station) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+
+    const booking = await Booking.findOne({ uniqueKey: normalizedToken }).populate('slotId');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Invalid token' });
+    }
+
+    if (booking.status === 'COMPLETED') {
+      return res.status(400).json({ success: false, message: 'Booking already completed' });
+    }
+
+    if (booking.status === 'EXPIRED') {
+      return res.status(403).json({ success: false, message: `Booking expired. Penalty: ₹${booking.penalty}` });
+    }
+
+    // Mark booking completed and free the slot
+    booking.status = 'COMPLETED';
+    await booking.save();
+
+    if (booking.slotId) {
+      await Slot.findByIdAndUpdate(booking.slotId._id, { isAvailable: true });
+    }
+
+    res.json({
+      success: true,
+      message: 'Exit granted. Slot is now free.',
+      data: {
+        slotNumber: booking.slotId?.slotNumber,
+        vehicleNumber: booking.numberPlate,
+      },
+    });
+
+  } catch (err) {
+    console.error('Checkout token error:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+};
+
 // Legacy wrapper for backward compatibility
 exports.getAvailableSlots = async (req, res) => {
   try {

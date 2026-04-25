@@ -7,6 +7,7 @@ import Booking from './pages/Booking';
 import Bookings from './pages/Bookings';
 import Confirmation from './pages/Confirmation';
 import Entry from './pages/Entry';
+import Exit from './pages/Exit';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Profile from './pages/Profile';
@@ -70,6 +71,14 @@ function App() {
                 <ProtectedRoute>
                   <div className="main-content">
                     <Entry />
+                  </div>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/exit" element={
+                <ProtectedRoute>
+                  <div className="main-content">
+                    <Exit />
                   </div>
                 </ProtectedRoute>
               } />
