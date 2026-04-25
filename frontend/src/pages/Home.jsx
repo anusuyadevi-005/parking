@@ -13,7 +13,7 @@ const Home = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/booking/stats');
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/booking/stats`);
         if (res.data && res.data.success) {
           setStats(res.data.data);
         }

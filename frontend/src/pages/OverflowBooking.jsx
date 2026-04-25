@@ -61,7 +61,7 @@ const OverflowBooking = () => {
         locationPreference: selectedLocation
       };
 
-      const res = await axios.post('http://localhost:5000/api/booking/create', payload);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/booking/create`, payload);
       if (res.data.success) {
         navigate('/confirmation', { state: { bookingInfo: res.data.data } });
       }

@@ -29,7 +29,7 @@ const Profile = () => {
   useEffect(() => {
     const fetchUserStats = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/booking/all-bookings');
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/booking/all-bookings`);
         if (res.data && res.data.success) {
           const bookings = res.data.data;
           setStats({
