@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
+import API from "../services/api";
 import { CheckCircle2, Clock, MapPin, Key, Bell, Car, ShieldCheck, ArrowRight, Loader2 } from "lucide-react";
 
 export default function SimulationPage() {
@@ -226,7 +226,7 @@ export default function SimulationPage() {
     setIsTimerRunning(false);
     
     try {
-      await axios.post('http://localhost:5000/api/booking/checkout', { uniqueKey: key });
+      await API.post('/booking/checkout', { uniqueKey: key });
       setIsSlotOpen(true);
       setTimeout(() => {
         setCarRotation(90);

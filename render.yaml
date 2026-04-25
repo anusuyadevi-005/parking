@@ -1,0 +1,32 @@
+services:
+  # ── Backend (Node/Express) ───────────────────────────────────────────────────
+  - type: web
+    name: smartpark-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: MONGO_URI
+        sync: false          # set in Render dashboard — contains credentials
+      - key: JWT_SECRET
+        sync: false          # set in Render dashboard
+      - key: NODE_ENV
+        value: production
+
+  # ── Frontend (React static site) ────────────────────────────────────────────
+  - type: web
+    name: smartpark-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      # After deploying the backend, set this to:
+      #   https://smartpark-backend.onrender.com/api
+      - key: REACT_APP_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

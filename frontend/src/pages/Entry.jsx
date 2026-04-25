@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { getStations, verifyToken as verifyNodeToken } from '../services/api';
+import API from '../services/api';
 
 const Entry = () => {
   const [uniqueKey, setUniqueKey] = useState('');
@@ -54,7 +54,7 @@ const Entry = () => {
       }
 
       // Fallback to legacy booking verification
-      const res = await axios.post('http://localhost:5000/api/booking/verify', { uniqueKey: uniqueKey.trim() });
+      const res = await API.post('/booking/verify', { uniqueKey: uniqueKey.trim() });
       if (res.data.success) {
         setStatus('success');
         setMessage(res.data.message);

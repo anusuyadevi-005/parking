@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, MapPin, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 
 const Bookings = () => {
   const navigate = useNavigate();
@@ -12,7 +12,7 @@ const Bookings = () => {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/booking/all-bookings');
+        const res = await API.get('/booking/all-bookings');
         if (res.data.success) {
           setBookings(res.data.data);
         } else {

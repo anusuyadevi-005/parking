@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import { LayoutDashboard, Users, ClipboardList, Settings, CheckCircle, XCircle } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -11,9 +11,9 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     try {
       const [bookingsRes, slotsRes, statsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/booking/all-bookings'),
-        axios.get('http://localhost:5000/api/booking/slots'),
-        axios.get('http://localhost:5000/api/booking/stats')
+        API.get('/booking/all-bookings'),
+        API.get('/booking/slots'),
+        API.get('/booking/stats')
       ]);
       setBookings(bookingsRes.data.data);
       setSlots(slotsRes.data.data);
