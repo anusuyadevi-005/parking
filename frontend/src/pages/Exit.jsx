@@ -35,22 +35,23 @@ const Exit = () => {
     setExitData(null);
 
     try {
+      let res = null;
+
       if (selectedNodeId) {
-        const res = await exitNodeToken(selectedNodeId, uniqueKey.trim());
-        if (res.data.success) {
-          setStatus('success');
-          setMessage(res.data.message || 'Exit granted. Gate Opening...');
-          setExitData(res.data.data);
-          return;
+        try {
+          res = await exitNodeToken(selectedNodeId, uniqueKey.trim());
+        } catch {
+          // station-scoped exit failed, fall through to legacy checkout
         }
       }
 
-      // Fallback to legacy checkout
-      const res = await API.post('/booking/checkout', { uniqueKey: uniqueKey.trim() });
-      if (res.data.success) {
-        setStatus('success');
-        setMessage(res.data.message || 'Checkout successful. Slot is now free.');
+      if (!res?.data?.success) {
+        res = await API.post('/booking/checkout', { uniqueKey: uniqueKey.trim() });
       }
+
+      setStatus('success');
+      setMessage(res.data.message || 'Exit granted. Slot is now free.');
+      setExitData(res.data.data || null);
     } catch (err) {
       setStatus('error');
       setMessage(err.response?.data?.message || 'Verification failed. Please try again.');
